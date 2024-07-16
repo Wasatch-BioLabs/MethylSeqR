@@ -1,13 +1,20 @@
-get_cov_stats <- function(modseq_dat, plot = FALSE) {
-  # clean dataframe
+get_cov_stats <- function(modseq_dat, 
+                          plot = FALSE)
+{
+  # Checks
+  stopifnot("Invalid dataframe format. A 'cov' or 'mean_cov' column must be present." =
+              any(c("cov", "mean_cov") %in% colnames(modseq_dat)))
+  
+  # Clean dataframe
   modseq_dat <- na.omit(modseq_dat)
-  # decide if per base or per region
+  
+  # Decide if per base or per region
   regional_dat = "region_name" %in% colnames(modseq_dat)
 
   if (!regional_dat) {
-    cov = modseq_dat$cov
+    cov = pull(modseq_dat, cov)
   } else {
-    cov = modseq_dat$mean_cov
+    cov = pull(modseq_dat, mean_cov)
   }
 
   qts=seq(0,0.9,0.1) # get quantiles
