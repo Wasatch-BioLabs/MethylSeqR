@@ -47,5 +47,6 @@ open_dat <- function(path,
       call_prob >= min_call_prob,
       read_length >= min_read_length,
       base_qual >= min_base_qual) |>
-    to_duckdb(con = db_con)
+    to_duckdb(con = db_con) |>
+    compute()
 }
