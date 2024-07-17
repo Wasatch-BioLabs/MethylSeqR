@@ -1,4 +1,5 @@
-get_mod_stats <- function(modseq_dat, plot = FALSE) {
+get_mod_stats <- function(modseq_dat, plot = FALSE) 
+{
   # decide if per base or per region 
   regional_dat = "region_name" %in% colnames(modseq_dat)
   
@@ -36,6 +37,7 @@ get_mod_stats <- function(modseq_dat, plot = FALSE) {
     
     # Create a data frame from your list
     plot <- data.frame(methylation_value = goodMeth)
+    
     # Create the histogram
     ggplot(plot, aes(x = methylation_value)) +
     geom_histogram(binwidth = 10, fill = "cornflowerblue", 
