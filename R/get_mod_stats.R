@@ -4,17 +4,16 @@ get_mod_stats <- function(modseq_dat, plot = FALSE) {
   
   # grab mh frac info- prioritize mh_frac over m_frac
   if ("mh_frac" %in% colnames(modseq_dat)) {
-    goodMeth = 100 * modseq_dat$mh_frac
+    goodMeth = 100 * pull(modseq_dat, mh_frac)
   } else if ("mean_mh_frac" %in% colnames(modseq_dat)) {
-    goodMeth = 100 * modseq_dat$mean_mh_frac
+    goodMeth = 100 * pull(modseq_dat, mean_mh_frac)
   } else if ("m_frac" %in% colnames(modseq_dat)) {
-    goodMeth = 100 * modseq_dat$m_frac
+    goodMeth = 100 * pull(modseq_dat, m_frac)
   } else if ("mean_m_frac" %in% colnames(modseq_dat)) {
-    goodMeth = 100 * modseq_dat$mean_m_frac
+    goodMeth = 100 * pull(modseq_dat, mean_m_frac)
   }
   
-  qts=seq(0,0.9,0.1) # get quantiles
-  qts=c(qts,0.95,0.99,0.995,0.999,1) 
+  qts <- c(seq(0, 0.9, 0.1), 0.95, 0.99, 0.995, 0.999, 1) 
   
   if (!plot) { # if only stats are wanted
     title <- "Methylation statistics per base\n"
@@ -39,9 +38,10 @@ get_mod_stats <- function(modseq_dat, plot = FALSE) {
     plot <- data.frame(methylation_value = goodMeth)
     # Create the histogram
     ggplot(plot, aes(x = methylation_value)) +
-    geom_histogram(binwidth = 10, fill = "cornflowerblue", color = "black", linewidth = 0.25) +
-    labs(title = "Histogram of % CpG Methylation", x = x_title, y = "Frequency") +
+    geom_histogram(binwidth = 10, fill = "cornflowerblue", 
+                   color = "black", linewidth = 0.25) +
+    labs(title = "Histogram of % CpG Methylation", 
+         x = x_title, y = "Frequency") +
     theme_minimal()
   }
-  
 }
