@@ -1,9 +1,9 @@
 summarize_by_region <- function(modseq_dat, 
-                                annotation)
+                                annot_file)
 {
   # Read annotation
   annotation <- 
-    read_tsv(annotation, col_names = c("chrom", "start", "end"))
+    read_tsv(annot_file, col_names = c("chrom", "start", "end"))
   
   # Make sure annotation file is formatted correctly
   if (ncol(annotation) < 3 || ncol(annotation) > 4) {

@@ -1,27 +1,24 @@
-.fast_fisher_pval <- function (q, m, n, k) 
+calc_diff_meth <- function(modseq_dat, 
+                           cases, 
+                           controls, 
+                           mod_type = "mh",
+                           calc_type = "fast_fisher") 
 {
-  # derived from https://github.com/al2na/methylKit/issues/96
-  
-  mat <- cbind(q, m, n, k)
-  
-  apply(mat, 1, function(qmnk){
-    dhyper_val <- 0.5 * dhyper(x = qmnk[1], m = qmnk[2], 
-                               n = qmnk[3], k = qmnk[4])
-    
-    pval_right <- phyper(q = qmnk[1], m = qmnk[2], 
-                         n = qmnk[3], k = qmnk[4], 
-                         lower.tail = FALSE) + dhyper_val
-    
-    pval_left  <- phyper(q = qmnk[1] - 1, m = qmnk[2], 
-                         n = qmnk[3], k = qmnk[4], 
-                         lower.tail = TRUE) + dhyper_val
-    
-    return(ifelse(test = pval_right > pval_left, 
-                  yes  = pval_left * 2, 
-                  no   = pval_right * 2))
-  })
+  switch(calc_type,
+         fast_fisher = .calc_diff_pos_fisher(modseq_dat,
+                                             cases,
+                                             controls,
+                                             mod_type,
+                                             calc_type = "fast_fisher"),
+         r_fisher    = .calc_diff_pos_fisher(modseq_dat,
+                                             cases,
+                                             controls,
+                                             mod_type,
+                                             calc_type = "r_fisher"))
 }
 
+## Calculate pvalues using fisher exact tests. If there are multiple smaples, 
+## they will be combined. 
 .calc_diff_pos_fisher <- function(modseq_dat, 
                                   case, 
                                   control, 
@@ -101,21 +98,11 @@
       ~ gsub("mod", mod_type[1], .x))
 }
 
-calc_diff_meth <- function(modseq_dat, 
-                           cases, 
-                           controls, 
-                           mod_type = "mh",
-                           calc_type = "fast_fisher") 
+.calc_diff_pos_logit <- function(modseq_dat, 
+                                 case, 
+                                 control, 
+                                 mod_type,
+                                 calc_type)
 {
-  switch(calc_type,
-         fast_fisher = .calc_diff_pos_fisher(modseq_dat,
-                                             cases,
-                                             controls,
-                                             mod_type,
-                                             calc_type = "fast_fisher"),
-         r_fisher    = .calc_diff_pos_fisher(modseq_dat,
-                                             cases,
-                                             controls,
-                                             mod_type,
-                                             calc_type = "r_fisher"))
+  
 }
