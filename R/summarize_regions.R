@@ -70,104 +70,60 @@ summarize_regions <- function(ch3_db,
         region_name = paste(chrom, start, end, sep = "_"))
   }
   
-  annotation <-
-    annotation |>
-    reframe(
-      .by = c(region_name, chrom),
-      ref_position = start:end)
-
-  tryCatch(
-    {
-      # Open the database connection
-      database <- .helper_connectDB(ch3_db)
-      db_con <- database$db_con
-      # Create regional data frame- offer a left, right or inner join
-      
-      # left join- keep reads that are outside of the annotation table
-      # right join- keep reads in annotation table + regions not included in data frame
-      # inner join- regions in both annotation and data frame...
-      if (!join_type %in% c("inner", "right", "left", "full")) {
-        stop("Invalid join type")
-      }
-      
-      my_join <- switch(join_type,
-                        "inner" = inner_join,
-                        "right" = right_join,
-                        "left" = left_join,
-                        "full" = full_join)
-      
-      if (dbExistsTable(db_con, "regions"))
-        dbRemoveTable(db_con, "regions")
-      
-      # Create regions table by unique chroms
-      chroms <-
-        annotation |>
-        select(chrom) |>
-        distinct() |>
-        filter(nchar(chrom) < 6) |>
-        pull()
-      
-      cat("Building regions table...")
-      # Create Progress Bar
-      pb <- progress_bar$new(
-        format = "[:bar] :percent [Elapsed time: :elapsed]",
-        total = length(chroms) + 1,
-        complete = "=",
-        incomplete = "-",
-        current = ">",
-        clear = FALSE,
-        width = 100)
-      
-      pb$tick()
-      
-      db_tbl = tbl(db_con, "positions")
-      
-      for (chr in chroms) {
-        # Begin summarizing by region- perform the join and aggregation
-        db_tbl |>
-          filter(chrom == chr) |>
-          my_join(annotation, 
-                  by = join_by(chrom, 
-                               ref_position), 
-                  copy = TRUE) |>
-          summarize(
-            .by = c(sample_name, region_name),
-            cov = sum(cov, na.rm = TRUE),
-            across(ends_with("_counts"), ~ sum(.x, na.rm = TRUE)),
-            across(ends_with("_frac"), ~ sum(.x * cov, na.rm = TRUE) / sum(cov, na.rm = TRUE))) |>
-          compute(name = "temp_table", temporary = TRUE)
-        
-        # Create or append table
-        dbExecute(db_con, 
-                  "CREATE TABLE IF NOT EXISTS regions AS 
-              SELECT * FROM temp_table WHERE 1=0")
-        
-        dbExecute(db_con, 
-                  "INSERT INTO regions SELECT * FROM temp_table")
-        
-        dbRemoveTable(db_con, "temp_table")
-        
-        pb$tick()
-      }
-      
-      # Close progress bar
-      pb$terminate()
-    }, error = function(e)
-    {
-      # Print custom error message
-      message("An error occurred: ", e$message)
-      dbRemoveTable(db_con, "regions")
-    }, 
-    finally = 
-      {
-        # Finish up: purge extra tables & update table list and close the connection
-        keep_tables = c("positions", "regions", "windows", "meth_diff")
-        .helper_purgeTables(db_con, keep_tables)
-        
-        # Finish Up
-        database$last_table = "regions"
-        .helper_closeDB(database)
-        return(database)
-      }
-  )
+  # Open the database connection
+  database <- .helper_connectDB(ch3_db)
+  db_con <- database$db_con
+    
+    # Specify on exit what to do...
+  on.exit(.helper_closeDB(database), add = TRUE)
+  
+  # Increase temp storage limit to avoid memory issues
+  dbExecute(db_con, "PRAGMA max_temp_directory_size='100GiB';")
+    
+  # Drop the regions table if it already exists
+  dbExecute(db_con, "DROP TABLE IF EXISTS regions;")
+    
+  cat("Building regions table...")
+  
+  db_tbl = tbl(db_con, "positions")
+  
+  # Upload annotation as a temporary table
+  dbExecute(db_con, "DROP TABLE IF EXISTS temp_annotation;")
+  dbWriteTable(db_con, "temp_annotation", annotation, temporary = TRUE)
+  
+  # Upload positions (db_tbl) as a temporary table
+  dbExecute(db_con, "DROP TABLE IF EXISTS temp_positions;")
+  dbWriteTable(db_con, "temp_positions", collect(db_tbl), temporary = TRUE)
+  
+  # Perform the **inequality join** in DuckDB and create the `regions` table
+  query <- "
+  CREATE TABLE regions AS
+  SELECT 
+    p.sample_name, 
+    a.region_name,
+    COUNT(*) AS num_CpGs, 
+    SUM(p.cov) AS cov, 
+    SUM(p.c_counts) AS c_counts, 
+    SUM(p.m_counts) AS m_counts, 
+    SUM(p.h_counts) AS h_counts, 
+    SUM(p.mh_counts) AS mh_counts, 
+    SUM(p.m_counts * p.cov) / NULLIF(SUM(p.cov), 0) AS m_frac,
+    SUM(p.h_counts * p.cov) / NULLIF(SUM(p.cov), 0) AS h_frac,
+    SUM(p.mh_counts * p.cov) / NULLIF(SUM(p.cov), 0) AS mh_frac
+  FROM temp_positions p
+  JOIN temp_annotation a
+    ON p.chrom = a.chrom 
+    AND CAST(p.ref_position AS DOUBLE) BETWEEN CAST(a.start AS DOUBLE) AND CAST(a.end AS DOUBLE)
+  GROUP BY p.sample_name, a.region_name;
+"
+  
+  dbExecute(db_con, query)
+            
+    # Finish up: purge extra tables & update table list and close the connection
+  keep_tables = c("positions", "regions", "windows", "meth_diff")
+  .helper_purgeTables(db_con, keep_tables)
+  
+  # Finish Up
+  database$last_table = "regions"
+  invisible(database)
 }
